@@ -1,0 +1,107 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+"""Python URL shortener on the command line for CLX Montreal challenge."""
+
+import argparse
+import base64
+import hashlib
+import json
+import os.path
+
+# Constants
+url_prefix = "http://cl.ip/"
+url_key_size = 10
+
+#  shortToLong and longToShort are the global database to store shorten URLs.
+shortToLong = {}
+longToShort = {}
+
+
+def parseArgs():
+	parser = argparse.ArgumentParser()
+	parser.add_argument('URL', action="store", nargs = '*',
+		help="URL to shorten or expand.")	
+	parser.add_argument("-e", "--expand", action="store_true", default=False, 
+		help="Expand URL from a previously generated short URL.") 
+	parser.add_argument("-p", "--persist", default="clip.db", dest="persistFilename",
+		help="Filename to use for persistance database") 	
+	parser.add_argument("-i", "--input", dest="inputFilename",
+		help="Read URLs from input file instead of command line. One url by line.") 	
+
+	return  parser.parse_args()
+
+
+def importDB(filename):
+	global shortToLong, longToShort
+	
+	# Check if file exist before opening it. If file not found it will be created 
+	# during exportDB().
+	if (os.path.isfile(filename)):
+		longToShort = json.loads(open(filename).read())
+
+	# Recreate inverse dict 
+	for key, value in longToShort.items():
+		shortToLong[value] = key
+
+	return 
+
+
+def exportDB(filename):
+	# Export database in sorted json format to help inspection and tests.
+	with open(filename, 'w') as file:
+		file.write(json.dumps(longToShort, sort_keys=True, indent=4))
+		file.write("\n")
+	return 
+
+
+# Is urlsafe_b64 is ok for alphanumeric?
+def shortenUrl(longUrl):
+	global shortToLong, longToShort
+
+	# Produce a short url by taking the first characteres of the hashing
+	# of a long url encoded in base64.
+	digest =  hashlib.sha224(longUrl).digest()
+	digestEncoded = base64.urlsafe_b64encode(digest)
+	shortUrl = url_prefix + digestEncoded[0:url_key_size]
+
+	# Check for improbable but possible collisions.
+	if shortUrl in shortToLong and longUrl != shortToLong[shortUrl]: 
+		raise KeyError("Hash collision for " + shortUrl + " with " + longUrl + " " + shortToLong[shortUrl])
+
+	# Store short and long url verions in global storage. 
+	shortToLong[shortUrl] = longUrl
+	longToShort[longUrl] = shortUrl
+	return shortUrl
+
+
+def originalUrl(shortUrl):
+
+	# Return long url if the short version exist in global storage. 
+	if( shortUrl in shortToLong):
+		return shortToLong[shortUrl]
+	else:
+		return ""
+
+
+def main():
+	args = parseArgs()
+
+	importDB(args.persistFilename)
+
+	urls = args.URL
+	if( args.inputFilename):
+		with open(args.inputFilename) as f:
+			urls = f.readlines()
+			urls = [x.strip() for x in urls] 
+
+	for u in urls:
+		if( args.expand):
+			print originalUrl(u)
+		else:
+			print shortenUrl(u)	
+	
+	exportDB(args.persistFilename)
+
+
+if __name__ == '__main__' : main()
