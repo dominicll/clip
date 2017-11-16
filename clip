@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""Python URL shortener on the command line for CLX Montreal challenge."""
+"""Python URL shortener on the command line with focus on code simplicity."""
 
 import argparse
 import base64
@@ -13,21 +13,22 @@ import os.path
 url_prefix = "http://cl.ip/"
 url_key_size = 10
 
-#  shortToLong and longToShort are the global database to store shorten URLs.
+#  shortToLong and longToShort are used as global database to store shorten URLs.
 shortToLong = {}
 longToShort = {}
 
 
 def parseArgs():
-	parser = argparse.ArgumentParser()
+	parser = argparse.ArgumentParser(
+		description="Python URL shortener on the command line with focus on code simplicity.")
 	parser.add_argument('URL', action="store", nargs = '*',
-		help="URL to shorten or expand.")	
+		help="URLs to shorten or expand.")	
 	parser.add_argument("-e", "--expand", action="store_true", default=False, 
-		help="Expand URL from a previously generated short URL.") 
+		help="expand URL from a previously generated short URL.") 
 	parser.add_argument("-p", "--persist", default="clip.db", dest="persistFilename",
-		help="Filename to use for persistance database") 	
+		help="filename to use for persistance database. Default to clip.db") 	
 	parser.add_argument("-i", "--input", dest="inputFilename",
-		help="Read URLs from input file instead of command line. One url by line.") 	
+		help="read URLs from an input file instead of the command line. One url by line.") 	
 
 	return  parser.parse_args()
 
@@ -55,12 +56,11 @@ def exportDB(filename):
 	return 
 
 
-# Is urlsafe_b64 is ok for alphanumeric?
 def shortenUrl(longUrl):
 	global shortToLong, longToShort
 
 	# Produce a short url by taking the first characteres of the hashing
-	# of a long url encoded in base64.
+	# of a long url encoded in base64. TODO: Confirm base64 is what meant by alphanumeric
 	digest =  hashlib.sha224(longUrl).digest()
 	digestEncoded = base64.urlsafe_b64encode(digest)
 	shortUrl = url_prefix + digestEncoded[0:url_key_size]
@@ -76,7 +76,6 @@ def shortenUrl(longUrl):
 
 
 def originalUrl(shortUrl):
-
 	# Return long url if the short version exist in global storage. 
 	if( shortUrl in shortToLong):
 		return shortToLong[shortUrl]
@@ -85,22 +84,27 @@ def originalUrl(shortUrl):
 
 
 def main():
+	# Parse command line options
 	args = parseArgs()
 
+	# Restore previously shorten urls
 	importDB(args.persistFilename)
 
+	# Get input urls from arguments of from file
 	urls = args.URL
 	if( args.inputFilename):
 		with open(args.inputFilename) as f:
 			urls = f.readlines()
 			urls = [x.strip() for x in urls] 
 
+	# Process each (shorten or expand) and print result
 	for u in urls:
 		if( args.expand):
 			print originalUrl(u)
 		else:
 			print shortenUrl(u)	
 	
+	# Save shorten url list
 	exportDB(args.persistFilename)
 
 
