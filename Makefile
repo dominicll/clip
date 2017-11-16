@@ -3,7 +3,7 @@
 test: test1 test2
 
 test1: 
-	# Check is all major command are working without generating and error
+	# Check if all basic options are working without generating and error.
 	./clip --help
 	./clip google.com
 	./clip -e http://cl.ip/vpZgdTd8th
