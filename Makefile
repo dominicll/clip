@@ -5,9 +5,9 @@ test: test1 test2
 test1: 
 	# Check if all basic options are working without generating and error.
 	./clip --help
-	./clip google.com
-	./clip -e http://cl.ip/vpZgdTd8th
-	./clip --expand http://cl.ip/vpZgdTd8th	
+	./clip htt://google.com
+	./clip -e http://cl.ip/I8tDAsqAnP
+	./clip --expand http://cl.ip/I8tDAsqAnP
 
 test2: 
 	# Shorten a list of urls, expand them back and check if they match

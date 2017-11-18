@@ -10,6 +10,8 @@ import json
 import os.path
 import random
 import string
+import sys
+import urlparse
 
 
 
@@ -47,15 +49,14 @@ def parseArgs():
 def importDb(filename):
 	global shortToLong, longToShort
 
-	
 	# Check if file exist before opening it. If file not found it will be created 
 	# during exportDB().
 	if (os.path.isfile(filename)):
 		shortToLong = json.loads(open(filename).read())
 
 	# Recreate inverse dict 
-	for key, value in longToShort.items():
-		longToShort[value['longToShort']] = key
+	for shortUrl, entry in shortToLong.items():
+		longToShort[entry['longUrl']] = shortUrl
 
 	return 
 
@@ -111,7 +112,21 @@ def generateKeySha(longUrl, allowedKeyChars, key_length, iteration):
 	return key
 
 
+def validateFullAbsoluteUrl(longUrl):
+	o = urlparse.urlparse(longUrl)
+	
+	# If there is no hostname, it's not absolute. 
+	if not o.netloc:
+		return False
+
+	return True
+
+
 def shortenUrl(longUrl, url_prefix, key_algo, key_base, key_length):
+	if not validateFullAbsoluteUrl(longUrl):
+		sys.stderr.write("Error: Not full absolute url.\n")
+		return ""
+
 	# If this longUrl  exist in db return already created  shortUrl
 	shortUrl = lookupDbByLongUrlIndex(longUrl)
 	if shortUrl:
@@ -152,11 +167,12 @@ def shortenUrl(longUrl, url_prefix, key_algo, key_base, key_length):
 
 def originalUrl(u):
 	longUrl = lookupDbByShortUrlIndex(u)
-	if longUrl:
-		return longUrl
+	if not longUrl:
+		sys.stderr.write("Error: URL not found.\n")
+		return ""
 
 	#Implement error handling here.
-	return ""
+	return longUrl
 
 def main():
 	# Parse command line options
