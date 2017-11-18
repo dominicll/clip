@@ -8,10 +8,10 @@ import base64
 import hashlib
 import json
 import os.path
+import random
+import string
 
-# Constants
-url_prefix = "http://cl.ip/"
-url_key_size = 10
+
 
 #  shortToLong and longToShort are used as global database to store shorten URLs.
 shortToLong = {}
@@ -30,82 +30,161 @@ def parseArgs():
 	parser.add_argument("-i", "--input", dest="inputFilename",
 		help="read URLs from an input file instead of the command line. One url by line.") 	
 
+	parser.add_argument("--short-url-prefix",  default="http://cl.ip/",
+		help="short URLs generated begin with. Default to http://cl.ip/") 	
+
+	parser.add_argument("--key-length", type=int, default="10",
+		help="generated key length. Default to 10") 	
+	parser.add_argument("--key-base", type=int, default="62", choices=range(2, 65), metavar="[2-64]", 
+		help="generated key base. Range from 2 (binary) to 64 (urlsafe). 62 is strict alphanumeric (0-9A-Za-z). Default to 64.") 
+	parser.add_argument("--key-algo",  choices=['sha', 'random'], default="sha",
+		help="algorithm used to generate key. Default to sha.") 
+
+
 	return  parser.parse_args()
 
 
-def importDB(filename):
+def importDb(filename):
 	global shortToLong, longToShort
+
 	
 	# Check if file exist before opening it. If file not found it will be created 
 	# during exportDB().
 	if (os.path.isfile(filename)):
-		longToShort = json.loads(open(filename).read())
+		shortToLong = json.loads(open(filename).read())
 
 	# Recreate inverse dict 
 	for key, value in longToShort.items():
-		shortToLong[value] = key
+		longToShort[value['longToShort']] = key
 
 	return 
 
 
-def exportDB(filename):
+def exportDb(filename):
 	# Export database in sorted json format to help inspection and tests.
 	with open(filename, 'w') as file:
-		file.write(json.dumps(longToShort, sort_keys=True, indent=4))
+		file.write(json.dumps(shortToLong, sort_keys=True, indent=4))
 		file.write("\n")
 	return 
 
 
-def shortenUrl(longUrl):
+
+def lookupDbByShortUrlIndex(shortUrl):
+	record = shortToLong.get(shortUrl, None)
+	if record:
+		return record['longUrl']
+	else:
+		return None
+
+def lookupDbByLongUrlIndex(longUrl):	
+	return longToShort.get(longUrl, None)
+
+
+def insertDb(longUrl, shortUrl, iteration=None):
 	global shortToLong, longToShort
 
-	# Produce a short url by taking the first characteres of the hashing
-	# of a long url encoded in base64. TODO: Confirm base64 is what meant by alphanumeric
-	digest =  hashlib.sha224(longUrl).digest()
-	digestEncoded = base64.urlsafe_b64encode(digest)
-	shortUrl = url_prefix + digestEncoded[0:url_key_size]
-
-	# Check for improbable but possible collisions.
-	if shortUrl in shortToLong and longUrl != shortToLong[shortUrl]: 
-		raise KeyError("Hash collision for " + shortUrl + " with " + longUrl + " " + shortToLong[shortUrl])
-
 	# Store short and long url verions in global storage. 
-	shortToLong[shortUrl] = longUrl
-	longToShort[longUrl] = shortUrl
+	if iteration:
+		shortToLong[shortUrl] = {'longUrl':longUrl,'iter':iteration}
+	else:
+		shortToLong[shortUrl] = {'longUrl':longUrl}
+
+	longToShort[longUrl] = shortUrl	
+
+
+def generateKeyRandom(allowedKeyChars, key_length):	
+	# Randomly pick n characters for the key 
+	key = ""
+	for _ in range(key_length):
+		key += random.choice(allowedKeyChars)
+
+	return key
+
+
+def generateKeySha(longUrl, allowedKeyChars, key_length, iteration):
+	m = hashlib.sha224()
+	m.update(longUrl)
+	m.update(str(iteration))
+	key = base64.b64encode(m.digest(), allowedKeyChars)
+	key = key[0:key_length]
+
+	return key
+
+
+def shortenUrl(longUrl, url_prefix, key_algo, key_base, key_length):
+	# If this longUrl  exist in db return already created  shortUrl
+	shortUrl = lookupDbByLongUrlIndex(longUrl)
+	if shortUrl:
+		return shortUrl
+
+	# Build the list of allowed characters to use in the key. Create maximum list 
+	# of 64 url safe characters than reduce it to specified size. 
+	base =  string.digits + string.ascii_uppercase + string.ascii_lowercase + "-_"
+	allowedKeyChars = base[0:key_base]
+
+	# Iterate as long as we do not have a shortUrl (only fist iteration) and
+	# as long as this key is not already associated with another longUrl.
+	iteration = 0
+	while( shortUrl == None or lookupDbByShortUrlIndex(shortUrl) != None):
+		shortUrl = url_prefix
+		if key_algo == 'random':
+			shortUrl += generateKeyRandom(allowedKeyChars, key_length)
+		elif key_algo == 'sha':
+			shortUrl += generateKeySha(longUrl, allowedKeyChars, key_length, iteration)
+		else:
+			raise KeyError("Unknow algorhith for key generation: " + key_algo)	
+
+		iteration += 1
+		if iteration > 50:
+			# Prevent infinite loop if key space is getting full. 50 is arbitrary
+			# as any more than two iteration is already showing crowding.
+			raise KeyError("Cannot find unused key (tried 50) for " + shortUrl)
+
+	# Add newly short and long url association in DB.
+	# Number of iteration is added to help in debugging if more than one iteration
+	# was needed.
+	if iteration > 1:
+		insertDb(longUrl, shortUrl, iteration)
+	else:
+		insertDb(longUrl, shortUrl)
+
 	return shortUrl
 
+def originalUrl(u):
+	longUrl = lookupDbByShortUrlIndex(u)
+	if longUrl:
+		return longUrl
 
-def originalUrl(shortUrl):
-	# Return long url if the short version exist in global storage. 
-	if( shortUrl in shortToLong):
-		return shortToLong[shortUrl]
-	else:
-		return ""
-
+	#Implement error handling here.
+	return ""
 
 def main():
 	# Parse command line options
-	args = parseArgs()
+	config = parseArgs()
 
 	# Restore previously shorten urls
-	importDB(args.persistFilename)
+	importDb(config.persistFilename)
 
 	# Get input urls from arguments of from file
-	urls = args.URL
-	if( args.inputFilename):
-		with open(args.inputFilename) as f:
+	urls = config.URL
+	if( config.inputFilename):
+		with open(config.inputFilename) as f:
 			urls = f.readlines()
 			urls = [x.strip() for x in urls] 
 
 	# Process each (shorten or expand) and print result
 	for u in urls:
-		if( args.expand):
+		if( config.expand):
 			print originalUrl(u)
 		else:
-			print shortenUrl(u)	
+			print shortenUrl(u, 
+				config.short_url_prefix,
+				config.key_algo, 
+				config.key_base, 
+				config.key_length)	
 	
 	# Save shorten url list
-	exportDB(args.persistFilename)
+	exportDb(config.persistFilename)
 
 
 if __name__ == '__main__' : main()
