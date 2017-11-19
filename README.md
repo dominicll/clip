@@ -70,25 +70,32 @@ Error: URL not found.
 
 ## More features
 
-** Database ** 
+**Database** 
 
-Shortened URLs survive an application restart by being saved in file clip.db. This is a json data file easy to inspect for debugging. The database can be reinitialized by deleting this file or by using the option *--dp-reset*.
+Shortened URLs survive an application restart by being saved in file clip.db in json format. 
 ```
-./clip http://google.com/
+$ ./clip http://google.com/
 http://cl.ip/Ikb9uxtHru
 
-./clip --expand http://cl.ip/Ikb9uxtHru
-http://google.com/
+$ cat clip.db 
+{
+    "http://cl.ip/Ikb9uxtHru": {
+        "longUrl": "http://google.com/"
+    }
+}
+```
 
+The database can be reinitialized by deleting clip.db or with the option *--dp-reset*.
+```
 ./clip --db-reset	
 Info: reseting short url databse.
 
 ./clip --expand http://cl.ip/Ikb9uxtHru
 Error: URL not found.
 ```
-** Key generation algoritms **
+**Key generation algoritms**
 
-Multiple key generation algorithms are available. The default is *Sha* based on a hashing function applied on the long url. Even without a database this algorithm will always try to return the same key for the same url. A database is still needed to expand URLs and to manage key collision.  
+Multiple key generation algorithms are available. The default is _Sha_ based on a hashing function applied on the long url. Even without a database this algorithm will always try to return the same key for the same url. A database is still needed to expand URLs and to manage key collision.  
 ```
 ./clip --key-algo sha http://google.com/
 http://cl.ip/Ikb9uxtHru
@@ -96,8 +103,9 @@ http://cl.ip/Ikb9uxtHru
 Info: reseting short url databse.
 ./clip --key-algo sha http://google.com/
 http://cl.ip/Ikb9uxtHru
+```
 
-*Random* algorithm create a new random key every time a new url is submitted. After a database reset, new random unrelated keys are generated.
+_Random_ algorithm create a new random key every time a new url is submitted. After a database reset, new random unrelated keys are generated.
 ```
 ./clip --key-algo random http://google.com/
 http://cl.ip/kvbbzqc0PW
@@ -109,7 +117,7 @@ http://cl.ip/zjpVk8GRav
 
 *Sequence* this algorithm generate keys based on a sequential order. After a database reset the first key to be generated is always the same irrespective of the specific URLs being submitted.  
 
-** Small demo server **
+**Small demo server**
 
 This mimimal Flask server run load clip.db and redirect requests matching a shortened URL from the db. Server is running on http://127.0.0.1:5000/. 
 
