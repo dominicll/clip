@@ -18,8 +18,7 @@ def parseArgs(args):
 		help="URLs to shorten or expand.")	
 	parser.add_argument("-e", "--expand", action="store_true", default=False, 
 		help="expand URL from a previously generated short URL.") 
-	parser.add_argument("-p", "--persist", default="clip.db", dest="persistFilename",
-		help="filename to use for persistance database. Default to clip.db") 	
+
 	parser.add_argument("-i", "--input", dest="inputFilename",
 		help="read URLs from an input file instead of the command line. One url by line.") 	
 
@@ -32,6 +31,12 @@ def parseArgs(args):
 		help="generated key base. Range from 2 (binary) to 64 (urlsafe). 62 is strict alphanumeric [0-9A-Za-z]. Default to 62.") 
 	parser.add_argument("--key-algo",  choices=['sha', 'random'], default="sha",
 		help="algorithm used to generate key. Default to sha.") 
+
+	parser.add_argument("--db-name", default="clip.db", 
+		help="filename to use for persistance database. Default to clip.db") 	
+	parser.add_argument("--db-reset", action="store_true", default=False,
+		help="Ignore existing db. Restart from empty db.") 
+
 
 	config = parser.parse_args(args)
 
@@ -62,7 +67,10 @@ def main():
 	(urls, config) = parseArgs(sys.argv[1:])
 
 	# Restore previously shorten urls
-	importDb(config.persistFilename)
+	if config.db_reset == False:
+		importDb(config.db_name)
+	else:
+		sys.stderr.write("Info: reseting short url databse.\n")
 
 	# Process each (shorten or expand) and print result
 	for u in urls:
@@ -76,7 +84,7 @@ def main():
 				config.key_length)	
 	
 	# Save shorten url list
-	exportDb(config.persistFilename)
+	exportDb(config.db_name)
 
 
 if __name__ == '__main__' : main()
