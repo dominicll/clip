@@ -4,23 +4,14 @@
 """Python URL shortener on the command line with focus on code simplicity."""
 
 import argparse
-import base64
-import hashlib
-import json
-import os.path
-import random
-import string
 import sys
-import urlparse
+
+from clipdb import importDb, exportDb
+from clipurl import shortenUrl, expandUrl
 
 
 
-#  shortToLong and longToShort are used as global database to store shorten URLs.
-shortToLong = {}
-longToShort = {}
-
-
-def parseArgs():
+def parseArgs(args):
 	parser = argparse.ArgumentParser(
 		description="Python URL shortener on the command line with focus on code simplicity.")
 	parser.add_argument('URL', action="store", nargs = '*',
@@ -38,160 +29,45 @@ def parseArgs():
 	parser.add_argument("--key-length", type=int, default="10",
 		help="generated key length. Default to 10") 	
 	parser.add_argument("--key-base", type=int, default="62", choices=range(2, 65), metavar="[2-64]", 
-		help="generated key base. Range from 2 (binary) to 64 (urlsafe). 62 is strict alphanumeric (0-9A-Za-z). Default to 64.") 
+		help="generated key base. Range from 2 (binary) to 64 (urlsafe). 62 is strict alphanumeric [0-9A-Za-z]. Default to 62.") 
 	parser.add_argument("--key-algo",  choices=['sha', 'random'], default="sha",
 		help="algorithm used to generate key. Default to sha.") 
 
-
-	return  parser.parse_args()
-
-
-def importDb(filename):
-	global shortToLong, longToShort
-
-	# Check if file exist before opening it. If file not found it will be created 
-	# during exportDB().
-	if (os.path.isfile(filename)):
-		shortToLong = json.loads(open(filename).read())
-
-	# Recreate inverse dict 
-	for shortUrl, entry in shortToLong.items():
-		longToShort[entry['longUrl']] = shortUrl
-
-	return 
-
-
-def exportDb(filename):
-	# Export database in sorted json format to help inspection and tests.
-	with open(filename, 'w') as file:
-		file.write(json.dumps(shortToLong, sort_keys=True, indent=4))
-		file.write("\n")
-	return 
-
-
-
-def lookupDbByShortUrlIndex(shortUrl):
-	record = shortToLong.get(shortUrl, None)
-	if record:
-		return record['longUrl']
-	else:
-		return None
-
-def lookupDbByLongUrlIndex(longUrl):	
-	return longToShort.get(longUrl, None)
-
-
-def insertDb(longUrl, shortUrl, iteration=None):
-	global shortToLong, longToShort
-
-	# Store short and long url verions in global storage. 
-	if iteration:
-		shortToLong[shortUrl] = {'longUrl':longUrl,'iter':iteration}
-	else:
-		shortToLong[shortUrl] = {'longUrl':longUrl}
-
-	longToShort[longUrl] = shortUrl	
-
-
-def generateKeyRandom(allowedKeyChars, key_length):	
-	# Randomly pick n characters for the key 
-	key = ""
-	for _ in range(key_length):
-		key += random.choice(allowedKeyChars)
-
-	return key
-
-
-def generateKeySha(longUrl, allowedKeyChars, key_length, iteration):
-	m = hashlib.sha224()
-	m.update(longUrl)
-	m.update(str(iteration))
-	key = base64.b64encode(m.digest(), allowedKeyChars)
-	key = key[0:key_length]
-
-	return key
-
-
-def validateFullAbsoluteUrl(longUrl):
-	o = urlparse.urlparse(longUrl)
-	
-	# If there is no hostname, it's not absolute. 
-	if not o.netloc:
-		return False
-
-	return True
-
-
-def shortenUrl(longUrl, url_prefix, key_algo, key_base, key_length):
-	if not validateFullAbsoluteUrl(longUrl):
-		sys.stderr.write("Error: Not full absolute url.\n")
-		return ""
-
-	# If this longUrl  exist in db return already created  shortUrl
-	shortUrl = lookupDbByLongUrlIndex(longUrl)
-	if shortUrl:
-		return shortUrl
-
-	# Build the list of allowed characters to use in the key. Create maximum list 
-	# of 64 url safe characters than reduce it to specified size. 
-	base =  string.digits + string.ascii_uppercase + string.ascii_lowercase + "-_"
-	allowedKeyChars = base[0:key_base]
-
-	# Iterate as long as we do not have a shortUrl (only fist iteration) and
-	# as long as this key is not already associated with another longUrl.
-	iteration = 0
-	while( shortUrl == None or lookupDbByShortUrlIndex(shortUrl) != None):
-		shortUrl = url_prefix
-		if key_algo == 'random':
-			shortUrl += generateKeyRandom(allowedKeyChars, key_length)
-		elif key_algo == 'sha':
-			shortUrl += generateKeySha(longUrl, allowedKeyChars, key_length, iteration)
-		else:
-			raise KeyError("Unknow algorhith for key generation: " + key_algo)	
-
-		iteration += 1
-		if iteration > 50:
-			# Prevent infinite loop if key space is getting full. 50 is arbitrary
-			# as any more than two iteration is already showing crowding.
-			raise KeyError("Cannot find unused key (tried 50) for " + shortUrl)
-
-	# Add newly short and long url association in DB.
-	# Number of iteration is added to help in debugging if more than one iteration
-	# was needed.
-	if iteration > 1:
-		insertDb(longUrl, shortUrl, iteration)
-	else:
-		insertDb(longUrl, shortUrl)
-
-	return shortUrl
-
-def originalUrl(u):
-	longUrl = lookupDbByShortUrlIndex(u)
-	if not longUrl:
-		sys.stderr.write("Error: URL not found.\n")
-		return ""
-
-	#Implement error handling here.
-	return longUrl
-
-def main():
-	# Parse command line options
-	config = parseArgs()
-
-	# Restore previously shorten urls
-	importDb(config.persistFilename)
+	config = parser.parse_args(args)
 
 	# Get input urls from arguments of from file
 	urls = config.URL
 	if( config.inputFilename):
 		with open(config.inputFilename) as f:
 			urls = f.readlines()
-			urls = [x.strip() for x in urls] 
+			urls = [x.strip() for x in urls]  
+
+	return  (urls, config)
+
+def test_parseArgs():
+	#Test  basic  arguments processing
+	config = parseArgs(['http://example.com/'])
+	assert(config.expand == False)
+
+	config = parseArgs(['-e', 'http://example.com/'])
+	assert(config.expand == True)
+
+	config = parseArgs(['--expand', 'http://example.com/'])
+	assert(config.expand == True)
+
+	return 
+
+def main():
+	# Parse command line options
+	(urls, config) = parseArgs(sys.argv[1:])
+
+	# Restore previously shorten urls
+	importDb(config.persistFilename)
 
 	# Process each (shorten or expand) and print result
 	for u in urls:
 		if( config.expand):
-			print originalUrl(u)
+			print expandUrl(u)
 		else:
 			print shortenUrl(u, 
 				config.short_url_prefix,

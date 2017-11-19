@@ -1,22 +1,45 @@
 
 
-test: test1 test2
+test: test1 test2 cover
 
 test1: 
-	# Check if all basic options are working without generating and error.
+	# Test base api: get help, shorten and expand
+	# Only check if execution succeed without errors or crash
 	./clip --help
-	./clip htt://google.com
-	./clip -e http://cl.ip/I8tDAsqAnP
-	./clip --expand http://cl.ip/I8tDAsqAnP
+	./clip http://google.com
+	./clip -e http://cl.ip/2le961GJac
+	./clip --expand http://cl.ip/2le961GJac
 
-test2: 
-	# Shorten a list of urls, expand them back and check if they match
+test2:
+	# Test if shortened urls are reexpanded to same urls 
 	./clip -i test.txt > test.out
 	./clip --expand -i test.out > test.out2
 	diff -u test.txt test.out2
 
+cover:
+	# Run 
+	pytest --cov=clip
+	coverage html
+
 clean: 
-	rm clip.db test.out test.out2
+	-rm clip.db test.out test.out2 *.pyc
 
 
+test3: 
+	-rm clip.db
+	./clip --key-base 4 --key-length 1 --key-algo random http://google.com/1
+	./clip --key-base 4 --key-length 1 --key-algo random http://google.com/2
+	./clip --key-base 4 --key-length 1 --key-algo random http://google.com/3
+	./clip --key-base 4 --key-length 1 --key-algo random http://google.com/4
+	./clip --key-base 4 --key-length 1 --key-algo random http://google.com/5
+	cat clip.db
+
+test4: 
+	-rm clip.db
+	./clip --key-base 4 --key-length 1 --key-algo sha http://google.com/1
+	./clip --key-base 4 --key-length 1 --key-algo sha http://google.com/2
+	./clip --key-base 4 --key-length 1 --key-algo sha http://google.com/3
+	./clip --key-base 4 --key-length 1 --key-algo sha http://google.com/4
+	./clip --key-base 4 --key-length 1 --key-algo sha http://google.com/5
+	cat clip.db
 
