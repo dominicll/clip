@@ -109,6 +109,21 @@ http://cl.ip/zjpVk8GRav
 
 *Sequence* this algorithm generate keys based on a sequential order. After a database reset the first key to be generated is always the same irrespective of the specific URLs being submitted.  
 
+** Small demo server **
+
+This mimimal Flask server run load clip.db and redirect requests matching a shortened URL from the db. Server is running on http://127.0.0.1:5000/. 
+
+```
+python demo-server.py
+ # Starting app with 28 short urls
+ * Running on http://127.0.0.1:5000/ (Press CTRL+C to quit)
+ * Restarting with stat
+ # Starting app with 28 short urls
+ * Debugger is active!
+ * Debugger PIN: 259-548-949
+ ```
+
+
 
 
 

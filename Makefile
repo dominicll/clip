@@ -1,8 +1,21 @@
 
 
-test: test1 test2 cover
+test: test-api1  test-api2 cover
 
-test1: 
+
+
+clean: 
+	-rm clip.db test.out test.out2 *.pyc
+
+cover:
+	# Generate test coverage report
+	pytest --cov=clip
+	coverage html
+
+run-demo:
+	python demo-server.py
+
+test-api1: 
 	# Test base api: get help, shorten and expand
 	# Only check if execution succeed without errors or crash
 	./clip --help
@@ -10,60 +23,36 @@ test1:
 	./clip -e http://cl.ip/4u5jwS5lRD
 	./clip --expand http://cl.ip/4u5jwS5lRD
 
-test2:
+test-api2:
 	# Test if shortened urls are reexpanded to same urls 
 	./clip -i test.txt > test.out
 	./clip --expand -i test.out > test.out2
 	diff -u test.txt test.out2
 
-cover:
-	# Run 
-	pytest --cov=clip
-	coverage html
-
-clean: 
-	-rm clip.db test.out test.out2 *.pyc
 
 
-test3: 
-	-rm clip.db
-	./clip --key-base 4 --key-length 1 --key-algo random http://google.com/1
-	./clip --key-base 4 --key-length 1 --key-algo random http://google.com/2
-	./clip --key-base 4 --key-length 1 --key-algo random http://google.com/3
-	./clip --key-base 4 --key-length 1 --key-algo random http://google.com/4
-	./clip --key-base 4 --key-length 1 --key-algo random http://google.com/5
-	cat clip.db
-
-test4: 
-	-rm clip.db
-	./clip --key-base 4 --key-length 1 --key-algo sha http://google.com/1
-	./clip --key-base 4 --key-length 1 --key-algo sha http://google.com/2
-	./clip --key-base 4 --key-length 1 --key-algo sha http://google.com/3
-	./clip --key-base 4 --key-length 1 --key-algo sha http://google.com/4
-	./clip --key-base 4 --key-length 1 --key-algo sha http://google.com/5
-	cat clip.db
-
-
-readme4:
+readme-shorten1:
 	./clip "../image/x.jpg"	
 	./clip ftp://example.com/index.html
 
-readme5:
+readme-shorten2:
 	./clip "http://google.com"	
 	./clip "http://google.com"	
 
-readme6:
+reame-shorten3:
 	./clip --short-url-prefix http://localhost:5000/ --key-length 4 --key-base 10 http://example.com
 
-readme7:
+
+readme-expand1:
 	./clip "http://google.com"	
 	./clip http://www.extremeprogramming.org/rules/simple.html
 	echo 
 	./clip --expand http://cl.ip/4u5jwS5lRD
 	./clip -e http://cl.ip/2le961GJac
 
-readme8:
+readme-expand2:
 	./clip --expand http://cl.ip/0000
+
 
 readme-db1:
 	./clip http://google.com/
